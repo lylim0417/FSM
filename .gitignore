@@ -1,4 +1,6 @@
-*.pyc
+# Existing FSM ignores
+
+.pyc
 .idea
 *ZZZ*
 sandbox
@@ -6,3 +8,53 @@ __pycache__
 wandb
 temp
 code
+
+
+# =========================
+# Datasets
+# =========================
+
+data/
+datasets/
+Dataset/
+
+
+# =========================
+# Model checkpoints
+# =========================
+
+*.ckpt
+*.pth
+*.pt
+
+
+# =========================
+# Experiment outputs
+# =========================
+
+outputs/
+logs/
+results/
+save*/
+
+
+# =========================
+# Python
+# =========================
+
+*.pyc
+__pycache__/
+
+
+# =========================
+# Docker/cache
+# =========================
+
+.cache/
+
+
+# =========================
+# Editors
+# =========================
+
+.vscode/
