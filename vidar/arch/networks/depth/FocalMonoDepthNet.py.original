@@ -37,7 +37,7 @@ class FocalMonoDepthNet(BaseNet, ABC):
         if self.training:
             inv_depths = [self.scale_inv_depth(inv_depth)[0] for inv_depth in inv_depths]
         else:
-            inv_depths = [self.scale_inv_depth(inv_depths[0])]
+            inv_depths = [self.scale_inv_depth(inv_depths[0])[0]]
 
         depths = inv2depth(inv_depths)
         depths = [d * intrinsics[:, 0, 0].view(rgb.shape[0], 1, 1, 1) for d in depths]
