@@ -1,0 +1,133 @@
+wrapper:
+    recipe: wrapper|default_flip
+
+    # Do not spend time evaluating the randomly initialized model.
+    validate_first: False
+
+    # One complete DDAD training epoch for the first end-to-end test.
+    max_epochs: 1
+    epochs_per_validation: 1
+
+    # Training still uses default_flip's flip_lr_prob = 0.5.
+    # For the primary validation result, evaluate raw/native prediction
+    # without flip post-processing.
+    validate_flipped: False
+
+arch:
+    model:
+        file: depth/FixedCalibFSM
+
+        # ------------------------------------------------------------
+        # Six-camera spatio-temporal configuration
+        # ------------------------------------------------------------
+        context: [-1, 1]
+        dataset: ddad
+        cameras: [1, 5, 6, 7, 8, 9]
+
+        # Neighbor indices refer to positions in the six-camera list
+        # above rather than the physical DDAD camera IDs.
+        camera_neighboring_pairs:
+            - [2, 1]
+            - [0, 3]
+            - [4, 0]
+            - [1, 5]
+            - [5, 2]
+            - [4, 3]
+
+        # ------------------------------------------------------------
+        # Loss coefficients
+        # ------------------------------------------------------------
+        mono_loss_coeff: 1.0
+        stereo_loss_coeff: 0.1
+
+        # ------------------------------------------------------------
+        # Camera-only self-supervision guardrails
+        # ------------------------------------------------------------
+        use_gt_pose: False
+        gt_to_scale_injection: False
+
+        freeze_depthnet: False
+        freeze_posenet: False
+
+        num_scales: 1
+
+    networks:
+        depth:
+            recipe: networks/mono_depth_net|resnet18
+            depth_range: [0.0005, 0.3]
+            scale_intrinsics: True
+            num_scales: 1
+
+        pose:
+            recipe: networks/pose_net|resnet18
+
+    losses:
+        depth_selfsup:
+            recipe: losses/depth|self_supervised
+
+        smoothness:
+            recipe: losses/depth|smoothness
+
+# ------------------------------------------------------------
+# DDAD depth evaluation.
+#
+# Primary scientific result:
+# RAW / native metric prediction.
+#
+# Do not interpret median-scaled variants as native metric depth.
+# ------------------------------------------------------------
+evaluation:
+    depth:
+        recipe: evaluation/depth|ddad_resize
+
+optimizers:
+    depth:
+        recipe: optimizers|adam_20_05_step
+        lr: 2.0e-4
+
+    pose:
+        recipe: optimizers|adam_20_05_step
+        lr: 2.0e-4
+
+datasets:
+    train:
+        recipe: datasets/ddad|train_self_supervised_MR
+
+        context: [-1, 1]
+
+        # No GT depth training.
+        #
+        # Pose is available as DDAD geometry/calibration metadata.
+        # FixedCalibFSM does not inject GT temporal ego-motion scale
+        # into PoseNet.
+        labels: [pose, intrinsics]
+        labels_context: [pose]
+
+        cameras: [[1, 5, 6, 7, 8, 9]]
+
+        dataloader:
+            batch_size: 1
+            num_workers: 0
+            pin_memory: False
+
+    validation:
+        # Our corrected validation recipe includes intrinsics, which
+        # FixedCalibFSM inference requires.
+        recipe: datasets/ddad_fsm|val_6cams
+
+        dataloader:
+            batch_size: 8
+            num_workers: 0
+            pin_memory: False
+
+# ------------------------------------------------------------
+# Local checkpointing.
+#
+# monitor/mode intentionally omitted:
+# ModelCheckpoint therefore saves whenever validation completes.
+# One epoch -> one validation -> one checkpoint.
+# ------------------------------------------------------------
+checkpoint:
+    folder: /data/vidar/checkpoints
+    name: fixedcalib_fsm_rgb_1epoch
+    keep_top: 1
