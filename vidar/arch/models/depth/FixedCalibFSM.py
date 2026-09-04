@@ -32,6 +32,19 @@ class FixedCalibFSM(BaseFSM):
         self.freeze_depthnet = cfg_has(cfg.model, 'freeze_depthnet', False)
         self.mono_coeff = cfg_has(cfg.model, 'mono_loss_coeff', 1.0)
 
+        # Diagnostic control for multi-camera evidence.
+        #
+        # False:
+        #   reproduce the released BaseFSM behavior:
+        #   other cameras from current and temporal contexts.
+        #
+        # True:
+        #   isolate simultaneous fixed-calibration evidence:
+        #   C_i(t=0) <- C_j(t=0) only.
+        self.stereo_only_current = cfg_has(
+            cfg.model, 'stereo_only_current', False
+        )
+
         # Guardrails for the camera-only self-supervised baseline.
         if self.gt_to_scale_injection:
             raise ValueError(
@@ -42,6 +55,18 @@ class FixedCalibFSM(BaseFSM):
             raise ValueError(
                 'FixedCalibFSM requires use_gt_pose: False'
             )
+
+    def get_fixedcalib_multicam_pair(
+        self,
+        arg_ctx,
+        arg_tgt,
+    ):
+        """Select multi-camera contexts for the fixed-calibration branch."""
+        return self.get_valid_stereo_pair(
+            arg_ctx=arg_ctx,
+            arg_tgt=arg_tgt,
+            only_current=self.stereo_only_current,
+        )
 
     def forward(self, batch, epoch=0):
         """Forward pass for training or evaluation."""
@@ -126,7 +151,7 @@ class FixedCalibFSM(BaseFSM):
             stereo_loss = self.get_photometric_loss(
                 broken_keys=broken_keys,
                 valid_mask_type='sky_ground',
-                ctx_generator=self.get_valid_stereo_pair,
+                ctx_generator=self.get_fixedcalib_multicam_pair,
                 broken_depth=broken_depth,
                 broken_rgb=broken_rgb,
                 broken_cameras=cameras,
